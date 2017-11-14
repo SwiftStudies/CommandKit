@@ -1,2 +1,52 @@
-site_name: CommandKit Documentation
+site_name: CommandKit for Swift
+site_favicon: 'img/logo.png'
+site_author: 'Sean Alling'
+copyright: 'Copyright &copy; 2017 Sean Alling'
 theme: 'material'
+
+# Logo — not working
+
+# Pages
+pages:
+  - Setting Up: intro.md
+  - Getting Started: gettingStarted.md
+  - Installing Your CLI: installingCLTs.md
+  - Writing Commands: writingCommands.md
+  - Adding Options: addingOptions.md
+  - Handling Parameters: handlingParameters.md
+#  - User Input Runtime: userInputRuntime.md
+  - Reference:
+    - Tool: reference/toolRef.md
+    - Command: reference/commandRef.md
+    - Option: reference/optionRef.md
+    - Protocols: reference/protocolsRef.md
+    - Argument: reference/argumentRef.md
+    - ParameterOccurances: reference/parameterOccurancesRef.md
+  - Future Additions: futureAdditions.md
+  - How to Contribute: contributing.md
+
+# Options
+extra:
+#  logo:
+#    icon: 'site_favicon'
+  font:
+    text: 'Roboto'
+    code: 'Ubuntu Mono'
+  palette:
+    primary: 'deep orange'
+    accent: 'deep orange'
+
+# Extensions
+markdown_extensions:
+  - toc
+  - admonition
+  - codehilite
+  - footnotes
+  - pymdownx.betterem
+  - pymdownx.critic
+  - pymdownx.emoji
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.tasklist
+  - pymdownx.details
