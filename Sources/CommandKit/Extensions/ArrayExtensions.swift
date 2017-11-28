@@ -17,7 +17,7 @@ extension Array where Element == String {
         var argumentsToReturn = [Argument]()
         for (index, element) in self.enumerated() {
             if element == Tool.main.name && index == 0 {
-                // Tool invocation
+                // Tool Invocation
                 let newArg = Argument(value: element, type: .tool)
                 argumentsToReturn.append(newArg)
             }
@@ -76,9 +76,11 @@ extension Array where Element == Argument {
          (b) must be in index = 2
      */
     var isOptionArgumentPresent: Bool {
-        guard self.count >= 3 else { return false }
-        guard (self[1].type == .command) else { return false }
-        return (self[2].type == .option) ? true : false
+        guard let optionIndex = self.index(where: { $0.type == .option }) else { return false }
+        guard optionIndex != self.startIndex else { return false }
+        let beforeIndex = self.index(optionIndex, offsetBy: -1)
+        guard self[beforeIndex].type == .command || self[beforeIndex].type == .tool else { return false }
+        return true
     }
     
     /**

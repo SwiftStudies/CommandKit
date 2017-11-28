@@ -24,6 +24,21 @@ extension Dictionary where Key == String, Value == Option {
             return nil
         }
     }
+}
+
+
+extension Dictionary where Key == String {
     
+    /**
+     */
+    var numberOfTabs: Int {
+        let keys = self.map({ $0.key })
+        let largestKey = keys.reduce(into: "", { largest, newValue in
+            largest = newValue.count > largest.count ? newValue : largest
+        })
+        let rawNumberOfTabs = largestKey.count / 4
+        let modulo = 10 % rawNumberOfTabs
+        return (modulo == 0) ? (rawNumberOfTabs + 1) : rawNumberOfTabs
+    }
 }
 

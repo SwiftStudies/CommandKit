@@ -26,5 +26,11 @@ public class Option: Runnable, Parametric {
         self.parameters = parameters
         self.run = closure
     }
+    
+    internal init() {
+        self.name = ""
+        self.verbose = ""
+        self.run = { _ in return () }
+    }
 }
 
