@@ -29,7 +29,7 @@ extension String {
      
          Detemines if a string can be transformed to an object by the closure given
      */
-    internal func isConvertible(by transform: (String)->Any) -> Bool {
+    internal func isConvertible(by transform: StringTransform) -> Bool {
         return transform(self) != nil ? true : false
     }
     
