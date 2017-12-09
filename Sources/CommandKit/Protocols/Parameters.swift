@@ -7,8 +7,7 @@
 
 import Foundation
 
-public typealias StringTransform = (String) -> Any
-
+public typealias StringTransform = (String) -> Any?
 
 /**
      Defines the number of times a parameter of a particular type can appear.
@@ -37,7 +36,7 @@ extension Parametric {
     /**
          Helper method - find the first index that was not transformed
      */
-    fileprivate func findNewArgumentIndex(from transformedArguments: [Any]) -> Int {
+    fileprivate func findNewArgumentIndex(from transformedArguments: [Any?]) -> Int {
         let truncatedTransformedArguments = transformedArguments[1..<transformedArguments.count].map({$0})
         let newIndex = truncatedTransformedArguments.index(where: { $0 == nil })
         return newIndex == nil ? 0 : newIndex!
@@ -46,14 +45,15 @@ extension Parametric {
     /**
          Transforms the remaining `String` arguments with the provided transform closure a specified number of times
      */
-    internal func transformArguments(_ remainingArguments: [String], with transform: (String)->Any, count: Int) throws -> [Any] {
+    internal func transformArguments(_ remainingArguments: [String], with transform: StringTransform, count: Int) throws -> [Any] {
         guard remainingArguments.count >= count else { throw Tool.ArgumentError.insufficientParameters(requiredOccurence: .nRequired(count)) }
         
-        let transformedArguments = Array(remainingArguments.map(transform)[0..<count])
-        if transformedArguments.contains(where: { $0 == nil }) {
-            throw Tool.ArgumentError.invalidParameterType
-        }
-        return transformedArguments
+        return try remainingArguments[0..<count].map({
+            guard let transformed = transform($0) else {
+                throw Tool.ArgumentError.invalidParameterType
+            }
+            return transformed
+        })
     }
     
     /**
@@ -94,7 +94,7 @@ extension Parametric {
                 argumentIndex = argumentIndex + remainingUpperBound
                 
                 let appendable = Array(transformedArgs[0..<remainingUpperBound])
-                transformedParameters.append(contentsOf: appendable)
+                transformedParameters.append(appendable)
             }
             
             // Early escape condition

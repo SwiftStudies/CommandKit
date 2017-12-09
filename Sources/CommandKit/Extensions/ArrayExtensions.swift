@@ -28,7 +28,7 @@ extension Array where Element == String {
             }
             else if element.hasPrefix("-") {
                 // Option
-                var newValue = element.replacingOccurrences(of: "-", with: "")
+                let newValue = element.replacingOccurrences(of: "-", with: "")
                 let newArg = Argument(value: newValue, type: .option)
                 argumentsToReturn.append(newArg)
             }

@@ -39,7 +39,7 @@ extension String {
         // Early escape condition
         guard numberOfLines >= 1 else { return self }
         
-        var stringSegments = self.segmentString(width: width)
+        let stringSegments = self.segmentString(width: width)
         return self.assembleLinedString(with: stringSegments, returnIndent: returnIndent)
     }
     
@@ -108,12 +108,7 @@ extension String {
         }
         let insertion = newLineChar + indent + "\t"
         
-        segments.count
-        
-        for (index, range) in segments.enumerated() {
-            self.distance(from: startIndex, to: range.lowerBound)
-            self.distance(from: startIndex, to: range.upperBound)
-            
+        for (index, range) in segments.enumerated() {            
             if index < (segments.count - 1) {
                 stringToReturn += self[range] + insertion
             }
