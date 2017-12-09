@@ -7,6 +7,12 @@
 
 import Foundation
 
+// Add a command to the dictionary using its name as the key
+public extension Dictionary where Key == String, Value == Command {
+    public mutating func add(_ command:Command){
+        self[command.name] = command
+    }
+}
 
 extension Dictionary where Key == String, Value == Option {
     
