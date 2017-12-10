@@ -14,13 +14,13 @@ import Foundation
 public class VersionOption: Option {
     
     init(_ tool:Tool) {
-        super.init()
-        self.name = "v"
-        self.verbose = "version"
-        self.shortDescription = "Provides the current version of the command line tool."
-        self.parameters = [(StringTransform, ParameterOccurences)]()
-        self.run = { _ in 
-            print(tool.version.style(.bold))
+        super.init("v", verbose: "version", description: "Provides the current version of the command line tool", required: false){
+            [weak tool] (_,_) in
+            if let tool = tool {
+                print(tool.version.style(.bold))
+            } else {
+                print("Unknown version")
+            }
         }
     }
 }

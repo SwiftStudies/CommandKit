@@ -12,21 +12,26 @@ import Foundation
      Defines an object that can accept options
  */
 public protocol Optioned {
-    
-    /**
-         An array that holds possible options that can be run
-     */
-    var customOptions: [String : Option] { get set }
+    var customOptions : [Option] {get set}
 }
 
 extension Optioned{
-    var options : [String : Option] {
+    var options : [Option] {
         var finalOptions = customOptions
         
         if let commandSelf = self as? Command {
-            finalOptions.add(HelpOption(parent: commandSelf))
+            finalOptions.append(HelpOption(parent:commandSelf))
         }
         
         return finalOptions
+    }
+    
+    subscript(_ name:String)->Option?{
+        for option in options {
+            if option.name == name {
+                return option
+            }
+        }
+        return nil
     }
 }

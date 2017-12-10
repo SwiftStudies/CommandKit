@@ -11,19 +11,51 @@ import Foundation
 /**
      A singleton object that is used to organize, route, and run your command line tool.
  */
-public class Tool: Command {
+public class Tool{
+    public var defaultCommand : Command
+    
     public var name: String {
         return Tool.executableName
     }
-    public var description: String
+    public var description: String {
+        return defaultCommand.description
+    }
     
-    public var run: RunBlock
-    public var parameters = [(StringTransform, ParameterOccurences)] ()
+    public var run: RunBlock {
+        get {
+            return defaultCommand.run
+        }
+        
+        set {
+            defaultCommand.run = newValue
+        }
+    }
+    public var requiredParameters : RequiredParameters {
+        get{
+            return defaultCommand.requiredParameters
+        }
+        
+        set {
+            defaultCommand.requiredParameters = newValue
+        }
+    }
+    public var parameters : [Any] {
+        return defaultCommand.parameters
+    }
+
+    public var customOptions : [Option]{
+        get {
+            return defaultCommand.customOptions
+        }
+        
+        set {
+            defaultCommand.customOptions = newValue
+        }
+    }
     
-    public var version:     String!
-    public var arguments =  [Argument]()
-    public var commands = [String : Command]()
-    public var customOptions =  [String : Option]()
+    public var version:     String
+    
+    public var commands = [Command]()
     
     /**
          An error relating to improper user input
@@ -34,17 +66,27 @@ public class Tool: Command {
         case optionNotFound
         case noCommandProvided
         case parametersNotFound
-        case insufficientParameters(requiredOccurence: ParameterOccurences)
+        case insufficientParameters(requiredOccurence: Cardinality)
         case invalidParameterType
         case tooManyParameters
         case unrecognizedOptionParameterSignature
+        case incorrectParameterFormat(expected:Void, actual:String)
     }
     
-    public init(description:String, _ runBlock:@escaping RunBlock){
-        self.description = description
-        self.run = runBlock
-        commands.add(HelpCommand(self))
-        customOptions.add(VersionOption(self))
+    public init(defaultCommand command:Command, version: String ){
+        defaultCommand = command
+        self.version = version
+        defaultCommand.customOptions.append(VersionOption(self))
+    }
+    
+    internal func get(commandNamed commandName:String)->Command? {
+        for command in commands {
+            if command.name == commandName {
+                return command
+            }
+        }
+        
+        return nil
     }
     
     internal static var executableName : String {
@@ -58,40 +100,18 @@ public class Tool: Command {
  */
 extension Tool {
     
-    /**
-         Returns the command the command specified by the user if it matches a command allowed in the `Tool` singlton object.
-     
-     - throws: If there is no command provided by the user that matches any command in the `Tool` singleton object
-     */
-    fileprivate func fetchCommand() throws -> Command {
-        guard let commandArgument = arguments.subset(for: .command).first else { throw Tool.ArgumentError.noCommandProvided }
-        guard let command = commands[commandArgument.value] else { throw Tool.ArgumentError.commandNotFound(for: commandArgument.value)}
-        return command
-    }
-    
-    /**
-         Returns an option for the given command that matches the option (if present) specified in the `Tool` singleton's array of parsed arguments.
-     
-     - throws: If the option provided by the user is not found for the command given, `Tool.ArgumentError.optionNotFound`
-     */
-    fileprivate func fetchOption(for owner: Optioned) throws -> Option {
-        guard let optionArgument = arguments.subset(for: .option).first else { throw Tool.ArgumentError.optionNotFound }
-        guard let option = owner.options.element(of: optionArgument.value, isVerbose: optionArgument.value.isVerbose) else { throw Tool.ArgumentError.optionNotFound }
-        return option
-    }
-    
-    /**
-         Returns an array of transformed parameters using the parameter requirements in the provided `Parametric` object
-     */
-    fileprivate func fetchTransformedParameters(with parameterOwner: Parametric) throws -> [Any] {
-        guard !parameterOwner.parameters.isEmpty else { throw Tool.ArgumentError.tooManyParameters }
-        guard let subsetRange = arguments.parameterRange else { throw Tool.ArgumentError.parametersNotFound }
-        
-        let preParameters = arguments[subsetRange].map({ Argument(value: $0.value, type: $0.type) })
-        let postParameters = try parameterOwner.transformParameters(for: preParameters)
-        
-        return postParameters
-    }
+//    /**
+//         Returns an array of transformed parameters using the parameter requirements in the provided `Parametric` object
+//     */
+//    fileprivate func fetchTransformedParameters(with parameterOwner: Parametric) throws -> [Any] {
+//        guard !parameterOwner.parameters.isEmpty else { throw Tool.ArgumentError.tooManyParameters }
+//        guard let subsetRange = arguments.parameterRange else { throw Tool.ArgumentError.parametersNotFound }
+//
+//        let preParameters = arguments[subsetRange].map({ Argument(value: $0.value, type: $0.type) })
+//        let postParameters = try parameterOwner.transformParameters(for: preParameters)
+//
+//        return postParameters
+//    }
 }
 
 /**
@@ -161,6 +181,10 @@ extension Tool {
             // (1) print input provided was not recognized
             actionLog = "Unrecognized option and/or parameter signature."
             remedyLog = "For more information run " + "help".style(.bold)
+        //TODO: Improve Parameter requirements so that there is more information about what they are supposed to be
+        case .incorrectParameterFormat(let expected, let actual):
+            actionLog = "Bad parameter \(actual)"
+            remedyLog = "For more information run \("help".style(.bold))"
         }
         
         print(actionLog)
@@ -176,42 +200,33 @@ extension Tool {
     /**
          
      */
-    public func execute() {
-        arguments =  CommandLine.arguments.parseArguments(forTool: self)
-
+    public func execute()->Int {
         do {
-            var parameterOwner: Parametric?
-            var runnablePointer: Runnable?
-            var optionOwner: Optioned = self
+            let arguments = Arguments(forTool: self)
             
-            if arguments.isCommandArgumentPresent {
-                let command = try fetchCommand()
-                parameterOwner = command
-                runnablePointer = command
-                optionOwner = command
+            //The first argument is the executable
+            arguments.consume()
+            
+            let command : Command
+            
+            if let commandArgument = arguments.top, commandArgument.type == .command {
+                arguments.consume()
+                guard let requestedCommand = get(commandNamed: commandArgument.value) else {
+                    throw ArgumentError.commandNotFound(for: commandArgument.value)
+                }
+                command = requestedCommand
+            } else {
+                command = defaultCommand
             }
             
-            var parameters = [Any]()
-            
-            if arguments.isOptionArgumentPresent {
-                let option = try fetchOption(for: optionOwner)
-                parameterOwner = option
-                runnablePointer = option
+            return try command.execute(withArguments: arguments)
+        } catch {
+            if let error = error as? ArgumentError {
+                handle(error)
+            } else {
+                print("\(error)")
             }
-            
-            if arguments.isParameterArgumentPresent {
-                guard let safeParameterOwner = parameterOwner else { throw ArgumentError.noCommandProvided }
-                parameters = try fetchTransformedParameters(with: safeParameterOwner)
-            }
-            guard let safeRunnablePointer = runnablePointer else {
-                run([])
-                return
-            }
-            _ = safeRunnablePointer.run(parameters)
-        }
-        catch {
-            guard let runError = error as? ArgumentError else { return }
-            handle(runError)
+            return -1
         }
     }
 }
@@ -234,7 +249,7 @@ extension Tool {
          Returns a string with the auto-generated usage schema, list of commands (if present), and a list of options (if present)
      */
     var help: String {
-        let numberOfTabs = (commands.numberOfTabs > options.numberOfTabs) ? commands.numberOfTabs : options.numberOfTabs
+        let numberOfTabs = (commands.numberOfTabs > defaultCommand.options.numberOfTabs) ? commands.numberOfTabs : defaultCommand.options.numberOfTabs
         let lineWidth = 70
         
         return usageParagraph(maxLineWidth: lineWidth) + commandsParagraph(nCommandTabs: numberOfTabs, maxLineWidth: lineWidth) + optionsParagraph(nOptionTabs: numberOfTabs, maxLineWidth: lineWidth)
@@ -248,7 +263,7 @@ extension Tool {
         var schema = "\(name) COMMAND"
         let returnIndent = 4
         
-        if !self.options.isEmpty {
+        if !defaultCommand.options.isEmpty {
             schema += " | OPTION"
         }
         schema = schema.color(.green)
@@ -266,13 +281,13 @@ extension Tool {
         let descriptionWidth = maxLineWidth - (nCommandTabs * 4)
         var commandsParagraph = title + "\n\n"
         
-        for element in self.commands {
-            commandsParagraph += "\t" + "+ \(element.key)".color(.green)
+        for command in self.commands {
+            commandsParagraph += "\t" + "+ \(command.name)".color(.green)
             
-            for _ in 0..<(maxLineWidth - element.key.count) {
+            for _ in 0..<(maxLineWidth - command.name.count) {
                 commandsParagraph += " "
             }
-            commandsParagraph += element.value.description.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
+            commandsParagraph += command.description.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
         }
         return commandsParagraph
     }
@@ -281,21 +296,19 @@ extension Tool {
          Returns a formatted list of options
      */
     private func optionsParagraph(nOptionTabs: Int, maxLineWidth: Int) -> String {
-        guard !self.options.isEmpty else { return "" }
+        guard !defaultCommand.options.isEmpty else { return "" }
         
         let title = "Options:".style(.underline)
         let descriptionWidth = maxLineWidth - (nOptionTabs * 4)
         var optionsParagraph = title + "\n\n"
         
-        for element in options {
-            optionsParagraph += "\t" + "--\(element.key)".color(.magenta)
+        for option in defaultCommand.options {
+            optionsParagraph += "\t" + "--\(option.name)".color(.magenta)
             
-            guard let elementDescription = element.value.shortDescription else { continue }
-            
-            for _ in 0..<(maxLineWidth - element.key.count) {
+            for _ in 0..<(maxLineWidth - option.name.count) {
                 optionsParagraph += " "
             }
-            optionsParagraph += elementDescription.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
+            optionsParagraph += option.shortDescription.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
         }
         return optionsParagraph
     }

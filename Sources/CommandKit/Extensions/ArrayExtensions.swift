@@ -7,44 +7,6 @@
 
 import Foundation
 
-
-extension Array where Element == String {
-    
-    /**
-         Returns an array of parsed user input arguments from an array of strings
-     */
-    internal func parseArguments(forTool tool:Tool) -> [Argument] {
-        var argumentsToReturn = [Argument]()
-        for (index, element) in self.enumerated() {
-            
-            //In an argument list the first item is ALWAYS the tool name, however the executable
-            if index == 0 {
-                // Tool Invocation
-                let newArg = Argument(value: element, type: .tool)
-                argumentsToReturn.append(newArg)
-            }
-            else if tool.commands.contains(where: { $0.key == element }) && index == 1 {
-                // Command
-                let newArg = Argument(value: element, type: .command)
-                argumentsToReturn.append(newArg)
-            }
-            else if element.hasPrefix("-") {
-                // Option
-                let newValue = element.replacingOccurrences(of: "-", with: "")
-                let newArg = Argument(value: newValue, type: .option)
-                argumentsToReturn.append(newArg)
-            }
-            else {
-                // Parameter
-                let newArg = Argument(value: element, type: .parameter)
-                argumentsToReturn.append(newArg)
-            }
-        }
-        return argumentsToReturn
-    }
-}
-
-
 extension Array where Element == Argument {
     
     /**

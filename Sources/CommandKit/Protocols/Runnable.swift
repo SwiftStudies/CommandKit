@@ -7,7 +7,7 @@
 
 import Foundation
 
-public typealias RunBlock = ([Any]) -> (Any)!
+public typealias RunBlock = (Arguments) -> Int
 
 /**
      An object that can be executed by the Tool singleton

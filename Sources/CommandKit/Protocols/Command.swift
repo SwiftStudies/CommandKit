@@ -11,16 +11,34 @@ import Foundation
 /**
      An object that represents some kind of command or group of code that can be executed from the terminal
  */
-public protocol Command: Runnable, Parametric, Optioned {
+public protocol Command: Runnable, Parametric,Optioned {
     var name:        String { get }
     var description: String { get }
+    
+    var customOptions : [Option] { get} 
 }
 
+extension Command {
+    func execute(withArguments arguments:Arguments) throws ->Int{
+        
+        //While we still have options to process
+        while let nextOption = arguments.top, nextOption.type == .option {
+            guard let option = self[nextOption.value] else {
+                throw Tool.ArgumentError.optionNotFound
+            }
+            
+            arguments.consume()
+            
+            try option.parse(arguments: arguments)
+            try option.apply?(self, option.parameters)
+        }
+        
+        return run(arguments)
+    }
+}
 
 extension Command {
-    
-
-    
+        
     /**
          Returns a string with the auto-generated usage schema and a list of options (if present)
      */
@@ -48,7 +66,7 @@ extension Command {
         let returnIndent = 4
         
         let hasOptions = !self.options.isEmpty
-        let hasParameters = !self.parameters.isEmpty
+        let hasParameters = !self.requiredParameters.isEmpty
         switch (hasOptions, hasParameters) {
         case (true, true):
             schema += " OPTION | PARAMETER(s)"
@@ -79,15 +97,13 @@ extension Command {
         let descriptionWidth = maxLineWidth - (nOptionTabs * 4)
         var optionsParagraph = title + "\n\n"
         
-        for element in options {
-            optionsParagraph += "\t" + "--\(element.key)".color(.magenta)
-            
-            guard let elementDescription = element.value.shortDescription else { continue }
-            
-            for _ in 0..<(maxLineWidth - element.key.count) {
+        for option in options {
+            optionsParagraph += "\t" + "--\(option.name)".color(.magenta)
+                        
+            for _ in 0..<(maxLineWidth - option.name.count) {
                 optionsParagraph += " "
             }
-            optionsParagraph += elementDescription.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
+            optionsParagraph += option.shortDescription.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
         }
         return optionsParagraph
     }

@@ -31,3 +31,50 @@ public struct Argument {
     }
 }
 
+public class Arguments {
+    private var unprocessed = [Argument]()
+    
+    init(forTool tool:Tool){
+        for (index, element) in CommandLine.arguments.enumerated() {
+            
+            switch index {
+            case 0:
+                unprocessed.append(Argument(value: element, type: .tool))
+            case 1:
+                if tool.get(commandNamed: element) != nil {
+                    unprocessed.append(Argument(value: element, type: .command))
+                    break
+                }
+                fallthrough
+            default:
+                if element.hasPrefix("-") {
+                    let start : String.Index
+                    
+                    if element.hasPrefix("--"){
+                        start = element.index(element.startIndex, offsetBy: 2)
+                    } else {
+                        start = element.index(after: element.startIndex)
+                    }
+                    unprocessed.append(Argument(value: String(element[start..<element.endIndex]), type: .option))
+                } else {
+                    // Parameter
+                    let newArg = Argument(value: element, type: .parameter)
+                    unprocessed.append(newArg)
+                }
+            }
+        }
+    }
+
+    public var top : Argument? {
+        return unprocessed.first
+    }
+    
+    public var count : Int {
+        return unprocessed.count
+    }
+    
+    public func consume(){
+        assert(unprocessed.count > 0, "Attempt to consume an argument when none remain")
+        unprocessed.removeFirst()
+    }
+}

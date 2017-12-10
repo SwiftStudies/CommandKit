@@ -7,17 +7,29 @@
 
 import Foundation
 
-public typealias StringTransform = (String) -> Any?
 
 /**
-     Defines the number of times a parameter of a particular type can appear.
+ Defines the number of times a parameter of a particular type can appear.
  */
-public enum ParameterOccurences {
+public enum Cardinality {
     case one
     case nRequired(Int)
     case multiple
+    
+    var max : Int? {
+        switch self {
+        case .one:
+            return 1
+        case .nRequired(let n):
+            return n
+        case .multiple:
+            return nil
+        }
+    }
 }
 
+public typealias StringTransform = (String) -> Any?
+public typealias RequiredParameters = [(transform:StringTransform, cardinality: Cardinality)]
 
 /**
      Defines an object that can accept parameter requirements.
@@ -27,7 +39,8 @@ public protocol Parametric {
     /**
          An array that specifes the serial requirements of acceptable parameters
      */
-    var parameters: [(StringTransform, ParameterOccurences)] { get set }
+    var requiredParameters: RequiredParameters { get set }
+    var parameters        : [Any] { get }
 }
 
 
@@ -68,7 +81,7 @@ extension Parametric {
         var argumentIndex = 0
         var transformedParameters = [Any]()
         
-        for parameter in self.parameters {
+        for parameter in self.requiredParameters {
             let transform = parameter.0
             let frequencyRule = parameter.1
             let remainingArguments = arguments.map({ String($0.value) })
