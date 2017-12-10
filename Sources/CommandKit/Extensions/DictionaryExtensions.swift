@@ -14,6 +14,13 @@ public extension Dictionary where Key == String, Value == Command {
     }
 }
 
+public extension Dictionary where Key == String, Value == Option {
+    public mutating func add(_ option:Option){
+        self[option.name] = option
+    }
+}
+
+
 extension Dictionary where Key == String, Value == Option {
     
     /**

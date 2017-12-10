@@ -7,6 +7,7 @@
 
 import Foundation
 
+public typealias RunBlock = ([Any]) -> (Any)!
 
 /**
      An object that can be executed by the Tool singleton
@@ -19,6 +20,6 @@ public protocol Runnable: Any {
      - parameters: Can accept an array of transformed parameters
      - return: Can return a value for use via runnable chaining
      */
-    var run: ([Any])->(Any)! { get set }
+    var run: RunBlock { get set }
 }
 

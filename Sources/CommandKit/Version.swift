@@ -13,14 +13,14 @@ import Foundation
  */
 public class VersionOption: Option {
     
-    override init() {
+    init(_ tool:Tool) {
         super.init()
         self.name = "v"
         self.verbose = "version"
         self.shortDescription = "Provides the current version of the command line tool."
         self.parameters = [(StringTransform, ParameterOccurences)]()
         self.run = { _ in 
-            print(Tool.main.version.style(.bold))
+            print(tool.version.style(.bold))
         }
     }
 }

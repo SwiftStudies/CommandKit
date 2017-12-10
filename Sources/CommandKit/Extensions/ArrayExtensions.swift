@@ -13,15 +13,17 @@ extension Array where Element == String {
     /**
          Returns an array of parsed user input arguments from an array of strings
      */
-    internal func parseArguments() -> [Argument] {
+    internal func parseArguments(forTool tool:Tool) -> [Argument] {
         var argumentsToReturn = [Argument]()
         for (index, element) in self.enumerated() {
-            if element == Tool.main.name && index == 0 {
+            
+            //In an argument list the first item is ALWAYS the tool name, however the executable
+            if index == 0 {
                 // Tool Invocation
                 let newArg = Argument(value: element, type: .tool)
                 argumentsToReturn.append(newArg)
             }
-            else if Tool.main.commands.contains(where: { $0.key == element }) && index == 1 {
+            else if tool.commands.contains(where: { $0.key == element }) && index == 1 {
                 // Command
                 let newArg = Argument(value: element, type: .command)
                 argumentsToReturn.append(newArg)

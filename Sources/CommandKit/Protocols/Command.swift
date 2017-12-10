@@ -11,23 +11,15 @@ import Foundation
 /**
      An object that represents some kind of command or group of code that can be executed from the terminal
  */
-public protocol Command: Runnable, Parametric, OptionOwner {
+public protocol Command: Runnable, Parametric, Optioned {
     var name:        String { get }
     var description: String { get }
-    var options:     [String : Option] { get set }
-    var parameters:  [(StringTransform, ParameterOccurences)] { get set }
-    var run:         ([Any])->(Any)! { get set }
 }
 
 
 extension Command {
     
-    init() {
-        self.init()
-        self.options = [
-            "h" : HelpOption(parent: self)
-        ]
-    }
+
     
     /**
          Returns a string with the auto-generated usage schema and a list of options (if present)
@@ -52,7 +44,7 @@ extension Command {
      */
     private func usageParagraph(maxLineWidth: Int) -> String {
         let title  = "Usage:".style(.underline)
-        var schema = "\(Tool.main.name) \(self.name)"
+        var schema = "\(Tool.executableName) \(self.name)"
         let returnIndent = 4
         
         let hasOptions = !self.options.isEmpty
