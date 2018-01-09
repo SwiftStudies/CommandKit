@@ -7,54 +7,109 @@
 
 import Foundation
 
-public typealias ApplicationBlock = ((Command,[Any]) throws ->Void)
-
-
-/**
-     An option object can be added to a Command object to modify the command in some way.
- 
- - warning: never manually add a `-h` or `--help` option to a command, this is already built in to the command object
- */
-open class Option: Parametric {
-    public final var name:    String
-    public final var verbose: String
-    public final var shortDescription: String
-    public final var requiredParameters = RequiredParameters()
-    public final var parameters = [Any]()
-    public final var required : Bool
-    public final var apply : ApplicationBlock?
+public protocol OptionDefinition{
+    //Definition
+    var shortForm : String? {get}
+    var longForm  : String {get}
+    var description : String {get}
+    var parameters : Parameter {get}
+    var required : Bool {get}
+    var instance : OptionInstance? {get set}
     
-    public init(_ name: String, verbose: String, description:String,required:Bool = false, requiredParameters: RequiredParameters = RequiredParameters(), apply closure: ApplicationBlock? = nil) {
-        self.name = name
-        self.verbose = verbose
-        self.requiredParameters = requiredParameters
-        self.apply = closure
-        self.required = required
-        self.shortDescription = description
+}
+
+public extension OptionDefinition{
+    mutating func createInstance<T:OptionInstance>(withArguments arguments:Arguments) throws ->T?{
+        guard let newInstance = try T(withArguments: arguments, withDefinition:parameterDefinition) else {
+            return nil
+        }
+        
+        instance = newInstance
+        
+        return newInstance
     }
     
-    final func parse(arguments:Arguments) throws{
-        for parameter in requiredParameters {
+    var isSet : Bool {
+        return instance != nil
+    }
+    
+    func matches(argument:String)->Bool{
+        if argument.hasPrefix("--"){
+            if argument.substring(2..<argument.count) == longForm {
+                return true
+            }
+        } else if let shortForm = shortForm, argument.hasPrefix("-"){
+            if argument.substring(1..<argument.count) == shortForm {
+                return true
+            }
+        }
+        
+        return false
+    }
+}
+
+internal extension String {
+    internal func substring(_ range:CountableRange<Int>)->Substring{
+        let first = index(startIndex, offsetBy: range.startIndex)
+        let last = index(first, offsetBy: range.upperBound-range.lowerBound)
+        
+        return self[first..<last]
+    }
+}
+
+
+public extension OptionInstance{
+    func parseArguments(withArguments arguments:Arguments, withDefinition definition:RequiredParameters) throws -> [Any]{
+        var parsedParameters = [Any]()
+        for parameter in definition {
             let max = parameter.cardinality.max
             var i = 0
             repeat {
                 guard let argument = arguments.top, argument.type == .parameter else {
                     if max == nil && i > 0{
-                        return
+                        return parsedParameters
                     }
-                    throw Tool.ArgumentError.insufficientParameters(requiredOccurence: parameter.cardinality)
+                    throw Argument.ParsingError.insufficientParameters(requiredOccurence: parameter.cardinality)
                 }
                 
                 guard let transformedType = parameter.transform(argument.value) else {
-                    throw Tool.ArgumentError.incorrectParameterFormat(expected: Void(), actual: argument.value)
+                    throw Argument.ParsingError.incorrectParameterFormat(expected: Void(), actual: argument.value)
                 }
                 
-                parameters.append(transformedType)
+                parsedParameters.append(transformedType)
+                
                 
                 arguments.consume()
                 i += 1
             } while max == nil || max ?? 0<i
         }
+        
+        return parsedParameters
+    }
+}
+
+public class Option : OptionDefinition {
+    
+    public let shortForm: String?
+    public let longForm: String
+    public let description: String
+    
+    public let parameterDefinition: RequiredParameters
+    
+    public let required: Bool
+    
+    public var instance: OptionInstance?
+
+    public init(shortForm:String? = nil, longForm:String, description:String, parameterDefinition parameters:RequiredParameters, required : Bool = false) {
+        self.shortForm = shortForm
+        self.longForm = longForm
+        self.description = description
+        self.parameterDefinition = parameters
+        self.required = required
+    }
+    
+    open  func parseArguments(arguments:Arguments) throws {
+        try parseArguments(arguments: arguments)
     }
 }
 
