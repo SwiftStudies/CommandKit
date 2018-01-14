@@ -7,40 +7,92 @@
 
 import Foundation
 
-
-/**
-     An object that represents some kind of command or group of code that can be executed from the terminal
- */
-public protocol Command: Runnable, Parametric,Optioned {
-    var name:        String { get }
-    var description: String { get }
+open class Command : Optioned, Runnable, Parameterized{
     
-    var customOptions : [Option] { get} 
-}
+    final let name : String
+    final let description : String
+    final public private(set) var options : [Option]
+    
+    
+    final public private(set) var parameters : [Parameter]
 
-extension Command {
-    func execute(withArguments arguments:Arguments) throws ->Int{
+    public init(_ name:String, description:String, options: [Option] = [], parameters : [Parameter] = []){
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+        self.options = options
+        self.options.append(HelpOption(forCommand: self))
+    }
+    
+    private final subscript(optionCalled longForm:String)->Option?{
+        for option in options {
+            if option.longForm == longForm {
+                return option
+            }
+            if let shortForm = option.shortForm, shortForm == longForm {
+                return option
+            }
+        }
+        return nil
+    }
+    
+    final public func execute(withArguments arguments:Arguments) throws ->Int{
         
         //While we still have options to process
-        while let nextOption = arguments.top, nextOption.type == .option {
-            guard let option = self[nextOption.value] else {
-                throw Tool.ArgumentError.optionNotFound
+        while let nextArgument = arguments.top, nextArgument.type == .option {
+            guard let option = self[optionCalled: nextArgument.value] else {
+                throw Argument.ParsingError.optionNotFound
             }
             
             arguments.consume()
             
             try option.parse(arguments: arguments)
-            try option.apply?(self, option.parameters)
+            
+            option.isSet = true
+            
+            if let error = (option as? Runnable)?.run().error {
+                throw error
+            }
         }
         
-        return run(arguments)
-    }
-}
-
-extension Command {
+        //Make sure we have all required options
+        for option in options where option.required == true{
+            if !option.isSet {
+                throw Argument.ParsingError.requiredOptionNotFound(optionName: option.longForm)
+            }
+        }
         
+        //Now if we have parameters parse those from the arguments
+        try parse(arguments:arguments)
+        
+        switch run() {
+        case .success:
+            return RunnableReturnValue.success.code
+        case .failure(let error, _):
+            throw error
+        }
+    }
+    
+    open func run() -> RunnableReturnValue {
+        return RunnableReturnValue.success
+    }
+    
+    final class HelpOption : Option, Runnable {
+        
+        let command : Command
+        init(forCommand command:Command){
+            self.command = command
+            super.init(shortForm: "h", longForm: "help", description: "Provides help, usage instructions and a list of any options for the \(command.name.style(.bold)) command.", parameterDefinition: [], required: false)
+        }
+        
+        func run()->RunnableReturnValue{
+            print(command.help)
+            return RunnableReturnValue.success
+        }
+    }
+    
     /**
-         Returns a string with the auto-generated usage schema and a list of options (if present)
+     Returns a string with the auto-generated usage schema and a list of options (if present)
      */
     public var help: String {
         let numberOfTabs = options.numberOfTabs
@@ -50,7 +102,7 @@ extension Command {
     }
     
     /**
-         Returns a string with the auto-generated usage schema
+     Returns a string with the auto-generated usage schema
      */
     public var usage: String {
         let lineWidth = 70
@@ -58,15 +110,15 @@ extension Command {
     }
     
     /**
-         Returns the formatted usage schema
+     Returns the formatted usage schema
      */
-    private func usageParagraph(maxLineWidth: Int) -> String {
+    func usageParagraph(maxLineWidth: Int) -> String {
         let title  = "Usage:".style(.underline)
         var schema = "\(Tool.executableName) \(self.name)"
         let returnIndent = 4
         
         let hasOptions = !self.options.isEmpty
-        let hasParameters = !self.requiredParameters.isEmpty
+        let hasParameters = !self.parameters.isEmpty
         switch (hasOptions, hasParameters) {
         case (true, true):
             schema += " OPTION | PARAMETER(s)"
@@ -88,9 +140,9 @@ extension Command {
     }
     
     /**
-         Returns a formatted list of options
+     Returns a formatted list of options
      */
-    private func optionsParagraph(nOptionTabs: Int, maxLineWidth: Int) -> String {
+    func optionsParagraph(nOptionTabs: Int, maxLineWidth: Int) -> String {
         guard !self.options.isEmpty else { return "" }
         
         let title = "Options:".style(.underline)
@@ -98,14 +150,21 @@ extension Command {
         var optionsParagraph = title + "\n\n"
         
         for option in options {
-            optionsParagraph += "\t" + "--\(option.name)".color(.magenta)
-                        
-            for _ in 0..<(maxLineWidth - option.name.count) {
+            let optionName : String
+            if let shortForm = option.shortForm {
+                optionName = "-\(shortForm)|--\(option.longForm)"
+            } else {
+                optionName = "--\(option.longForm)"
+            }
+            optionsParagraph += "\t" + optionName.color(.magenta)
+            
+            for _ in 0..<(maxLineWidth - optionName.count) {
                 optionsParagraph += " "
             }
-            optionsParagraph += option.shortDescription.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
+            optionsParagraph += option.description.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
         }
         return optionsParagraph
     }
+    
 }
 

@@ -7,79 +7,29 @@
 
 import Foundation
 
-
-/**
-     A singleton object that is used to organize, route, and run your command line tool.
- */
-public class Tool{
-    public var defaultCommand : Command
+open class Tool {
     
-    public var name: String {
+    static var executableName : String {
+        return (CommandLine.arguments[0] as NSString).lastPathComponent
+    }
+    
+    var name : String {
         return Tool.executableName
     }
-    public var description: String {
-        return defaultCommand.description
-    }
+    var description : String
+    var defaultCommand : Command
+    var commands : [Command]
+    var version  : String
     
-    public var run: RunBlock {
-        get {
-            return defaultCommand.run
-        }
-        
-        set {
-            defaultCommand.run = newValue
-        }
-    }
-    public var requiredParameters : RequiredParameters {
-        get{
-            return defaultCommand.requiredParameters
-        }
-        
-        set {
-            defaultCommand.requiredParameters = newValue
-        }
-    }
-    public var parameters : [Any] {
-        return defaultCommand.parameters
+    
+    public init(version:String, description: String, defaultCommand:Command, otherCommands commands:[Command] = []) {
+        self.defaultCommand = defaultCommand
+        self.description = description
+        self.commands = commands
+        self.version = version
     }
 
-    public var customOptions : [Option]{
-        get {
-            return defaultCommand.customOptions
-        }
-        
-        set {
-            defaultCommand.customOptions = newValue
-        }
-    }
-    
-    public var version:     String
-    
-    public var commands = [Command]()
-    
-    /**
-         An error relating to improper user input
-     */
-    public enum ArgumentError: Error {
-        case invalidToolName
-        case commandNotFound(for: String)
-        case optionNotFound
-        case noCommandProvided
-        case parametersNotFound
-        case insufficientParameters(requiredOccurence: Cardinality)
-        case invalidParameterType
-        case tooManyParameters
-        case unrecognizedOptionParameterSignature
-        case incorrectParameterFormat(expected:Void, actual:String)
-    }
-    
-    public init(defaultCommand command:Command, version: String ){
-        defaultCommand = command
-        self.version = version
-        defaultCommand.customOptions.append(VersionOption(self))
-    }
-    
-    internal func get(commandNamed commandName:String)->Command? {
+    subscript(commandNamed commandName:String)->Command?{
         for command in commands {
             if command.name == commandName {
                 return command
@@ -88,12 +38,24 @@ public class Tool{
         
         return nil
     }
-    
-    internal static var executableName : String {
-        return (CommandLine.arguments[0] as NSString).lastPathComponent
-    }
-}
 
+    /**
+     Returns the formatted usage schema
+     */
+    func usageParagraph(maxLineWidth: Int) -> String {
+        let title  = "Usage:".style(.underline)
+        var schema = "\(name) COMMAND"
+        let returnIndent = 4
+        
+        if !defaultCommand.options.isEmpty {
+            schema += " | OPTION"
+        }
+        schema = schema.color(.green)
+        
+        return title + "\n\n\t$ " + schema + "\n\n\t  " + description.wrap(width: (maxLineWidth - returnIndent), returnIndent: returnIndent) + "\n"
+    }
+    
+}
 
 /**
      Fetch Objects for Parsed Argument Types
@@ -121,7 +83,7 @@ extension Tool {
     
     /**
      */
-    internal func handle(_ error: ArgumentError) {
+    internal func handle(_ error: Argument.ParsingError) {
         var actionLog = ""
         var remedyLog = ""
         // var askLog = ""
@@ -162,8 +124,12 @@ extension Tool {
                 frequencyString = "one parameter"
             case .multiple:
                 frequencyString = "at least one or more parameters"
-            case .nRequired(let num):
-                frequencyString = "\(num) parameters"
+            case .range(let range):
+                if range.lowerBound == range.upperBound {
+                    frequencyString = "\(range.lowerBound) parameters"
+                } else {
+                    frequencyString = "\(range.lowerBound) to \(range.upperBound) parameters"
+                }
             }
         
             remedyLog = "Please enter \(frequencyString) for this command|option. For more information run " + "help".style(.bold)
@@ -183,7 +149,10 @@ extension Tool {
             remedyLog = "For more information run " + "help".style(.bold)
         //TODO: Improve Parameter requirements so that there is more information about what they are supposed to be
         case .incorrectParameterFormat(let expected, let actual):
-            actionLog = "Bad parameter \(actual)"
+            actionLog = "Bad parameter \(actual) expected \(expected)"
+            remedyLog = "For more information run \("help".style(.bold))"
+        case .requiredOptionNotFound(let optionName):
+            actionLog = "Required option '\(optionName)' not supplied"
             remedyLog = "For more information run \("help".style(.bold))"
         }
         
@@ -211,8 +180,8 @@ extension Tool {
             
             if let commandArgument = arguments.top, commandArgument.type == .command {
                 arguments.consume()
-                guard let requestedCommand = get(commandNamed: commandArgument.value) else {
-                    throw ArgumentError.commandNotFound(for: commandArgument.value)
+                guard let requestedCommand = self[commandNamed: commandArgument.value] else {
+                    throw Argument.ParsingError.commandNotFound(for: commandArgument.value)
                 }
                 command = requestedCommand
             } else {
@@ -221,7 +190,7 @@ extension Tool {
             
             return try command.execute(withArguments: arguments)
         } catch {
-            if let error = error as? ArgumentError {
+            if let error = error as? Argument.ParsingError {
                 handle(error)
             } else {
                 print("\(error)")
@@ -229,47 +198,8 @@ extension Tool {
             return -1
         }
     }
-}
+    
 
-
-/**
-     Usage and Help
- */
-extension Tool {
-    
-    /**
-         Returns a string with the auto-generated usage schema
-     */
-    var usage: String {
-        let lineWidth = 70
-        return usageParagraph(maxLineWidth: lineWidth)
-    }
-    
-    /**
-         Returns a string with the auto-generated usage schema, list of commands (if present), and a list of options (if present)
-     */
-    var help: String {
-        let numberOfTabs = (commands.numberOfTabs > defaultCommand.options.numberOfTabs) ? commands.numberOfTabs : defaultCommand.options.numberOfTabs
-        let lineWidth = 70
-        
-        return usageParagraph(maxLineWidth: lineWidth) + commandsParagraph(nCommandTabs: numberOfTabs, maxLineWidth: lineWidth) + optionsParagraph(nOptionTabs: numberOfTabs, maxLineWidth: lineWidth)
-    }
-    
-    /**
-         Returns the formatted usage schema
-     */
-    private func usageParagraph(maxLineWidth: Int) -> String {
-        let title  = "Usage:".style(.underline)
-        var schema = "\(name) COMMAND"
-        let returnIndent = 4
-        
-        if !defaultCommand.options.isEmpty {
-            schema += " | OPTION"
-        }
-        schema = schema.color(.green)
-        
-        return title + "\n\n\t$ " + schema + "\n\n\t  " + description.wrap(width: (maxLineWidth - returnIndent), returnIndent: returnIndent) + "\n"
-    }
     
     /**
          Returns a formatted list of commands
@@ -292,25 +222,5 @@ extension Tool {
         return commandsParagraph
     }
     
-    /**
-         Returns a formatted list of options
-     */
-    private func optionsParagraph(nOptionTabs: Int, maxLineWidth: Int) -> String {
-        guard !defaultCommand.options.isEmpty else { return "" }
-        
-        let title = "Options:".style(.underline)
-        let descriptionWidth = maxLineWidth - (nOptionTabs * 4)
-        var optionsParagraph = title + "\n\n"
-        
-        for option in defaultCommand.options {
-            optionsParagraph += "\t" + "--\(option.name)".color(.magenta)
-            
-            for _ in 0..<(maxLineWidth - option.name.count) {
-                optionsParagraph += " "
-            }
-            optionsParagraph += option.shortDescription.wrap(width: descriptionWidth, returnIndent: (maxLineWidth - descriptionWidth)) + "\n"
-        }
-        return optionsParagraph
-    }
 }
 

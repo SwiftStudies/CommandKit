@@ -28,7 +28,7 @@ extension Array where Element == Option {
     /**
      */
     var numberOfTabs: Int {
-        let keys = self.map({ $0.name })
+        let keys = self.map({ $0.shortForm ?? $0.longForm })
         let largestKey = keys.reduce(into: "", { largest, newValue in
             largest = newValue.count > largest.count ? newValue : largest
         })

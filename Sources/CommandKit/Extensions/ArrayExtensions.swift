@@ -7,6 +7,26 @@
 
 import Foundation
 
+extension Array {
+    func adding(_ newElement:Element)->Array{
+        var newArray = self
+        newArray.append(newElement)
+        return newArray
+    }
+}
+
+public extension Array where Element == Option {
+    public subscript(optionNamed name:String)->Option?{
+        for option in self {
+            if option.longForm == name {
+                return option
+            }
+        }
+        return nil
+    }
+}
+
+
 extension Array where Element == Argument {
     
     /**

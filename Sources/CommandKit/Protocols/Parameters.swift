@@ -12,114 +12,167 @@ import Foundation
  Defines the number of times a parameter of a particular type can appear.
  */
 public enum Cardinality {
-    case one
-    case nRequired(Int)
-    case multiple
+    case one(optional:Bool)
+    case range(Range<Int>)
+    case multiple(optional:Bool)
     
-    var max : Int? {
+    var required:Bool {
         switch self {
-        case .one:
+        case .one(let optional):
+            return !optional
+        case .range(let range):
+            return range.lowerBound > 0
+        case .multiple(let optional):
+            return !optional
+            
+        }
+    }
+    
+    var min:Int {
+        switch self {
+        case .one(let optional):
+            return optional ? 0 : 1
+        case .range(let range):
+            return range.lowerBound
+        case .multiple(let optional):
+            return optional ? 0 : 1
+        
+        }
+    }
+    
+    var max:Int? {
+        switch self {
+        case .one(_):
             return 1
-        case .nRequired(let n):
-            return n
-        case .multiple:
+        case .range(let range):
+            return range.upperBound
+        case .multiple(_):
             return nil
+            
         }
     }
 }
 
-public typealias StringTransform = (String) -> Any?
-public typealias RequiredParameters = [(transform:StringTransform, cardinality: Cardinality)]
+public protocol ParameterType {
+    var  name        : String { get }
+    func transform(_ argumentValue : String )->Any?
+}
+
+public extension ParameterType {
+    private func parameter(withCardinality cardinality:Cardinality)->Parameter{
+        return Parameter(definition: PrarameterDefinition(type: self, requiredCardinality: cardinality))
+    }
+    
+    public func between(_ min:Int, and max:Int)->Parameter{
+        return parameter(withCardinality: Cardinality.range(min..<max))
+    }
+    
+    public func multiple(optional:Bool)->Parameter{
+        return parameter(withCardinality: Cardinality.multiple(optional: optional))
+    }
+    public func one(optional:Bool)->Parameter{
+        return parameter(withCardinality: Cardinality.one(optional: optional))
+    }
+}
+
+public enum StandardParameterType : ParameterType {
+    
+    case int, string, fileUrl
+    
+    public var name : String {
+        return "\(self)"
+    }
+    
+    public func transform(_ argumentValue: String) -> Any? {
+        switch self {
+        case .fileUrl:
+            return URL(fileURLWithPath: argumentValue)
+        case .string:
+            return argumentValue
+        case .int:
+            return Int(argumentValue)
+        }
+    }
+}
+
+public struct PrarameterDefinition {
+    let type                : ParameterType
+    let requiredCardinality : Cardinality
+}
+
+public class Parameter{
+    let definition : PrarameterDefinition
+    var values     = [Any]()
+    
+    public init(definition:PrarameterDefinition){
+        self.definition = definition
+    }
+    
+    public subscript(_ index:Int)->Any{
+        assert(index<values.count,"Invalid index \(index)")
+        return values[index]
+    }
+    
+    public func consume(argument:Argument) throws {
+        
+        guard let parameterValue = definition.type.transform(argument.value) else {
+            throw Argument.ParsingError.incorrectParameterFormat(expected: definition.type.name, actual: argument.value)
+        }
+        values.append(parameterValue)
+    }
+}
+
 
 /**
      Defines an object that can accept parameter requirements.
  */
-public protocol Parametric {
-    
-    /**
-         An array that specifes the serial requirements of acceptable parameters
-     */
-    var requiredParameters: RequiredParameters { get set }
-    var parameters        : [Any] { get }
+public protocol Parameterized {
+    var parameters : [Parameter] {get}
 }
 
+public protocol ParameterIndex {
+    var rawValue : Int { get }
+    
+    var parameter : Parameter { get }
+    
+    static var all : [Parameter] { get }
+}
 
-extension Parametric {
-    
-    /**
-         Helper method - find the first index that was not transformed
-     */
-    fileprivate func findNewArgumentIndex(from transformedArguments: [Any?]) -> Int {
-        let truncatedTransformedArguments = transformedArguments[1..<transformedArguments.count].map({$0})
-        let newIndex = truncatedTransformedArguments.index(where: { $0 == nil })
-        return newIndex == nil ? 0 : newIndex!
+public protocol IndexableParameterized : Parameterized{
+    associatedtype ParameterIndexType : ParameterIndex
+}
+
+public extension IndexableParameterized {
+    subscript(parameter parameterIndex:ParameterIndexType)->Parameter{
+        return parameters[parameterIndex.rawValue]
     }
     
-    /**
-         Transforms the remaining `String` arguments with the provided transform closure a specified number of times
-     */
-    internal func transformArguments(_ remainingArguments: [String], with transform: StringTransform, count: Int) throws -> [Any] {
-        guard remainingArguments.count >= count else { throw Tool.ArgumentError.insufficientParameters(requiredOccurence: .nRequired(count)) }
-        
-        return try remainingArguments[0..<count].map({
-            guard let transformed = transform($0) else {
-                throw Tool.ArgumentError.invalidParameterType
-            }
-            return transformed
-        })
+    subscript<T>(parameter parameterIndex:ParameterIndexType)->T?{
+        return parameters[parameterIndex.rawValue].values.first as? T
     }
+
+    subscript<T>(parameter parameterIndex:ParameterIndexType, valueIndex:Int)->T?{
+        return parameters[parameterIndex.rawValue].values[valueIndex] as? T
+    }
+}
+
+extension Parameterized {
     
-    /**
-         Transforms the parameters arguments using the transform(s) and frequency rule(s) of the parametric object's parameters requirements
-     
-     - warning: Must provide an array of arguments ALL of type `Argument.ParsedType.parameter`
-     
-     - throws: If any of the supplied parameter arguments do not match any of the requirements specified of the parametric object
-     */
-    internal func transformParameters(for arguments: [Argument]) throws -> [Any] {
-        guard (arguments.contains(where: { $0.type != .parameter }) == false) else { throw Tool.ArgumentError.parametersNotFound }
-        var argumentIndex = 0
-        var transformedParameters = [Any]()
-        
-        for parameter in self.requiredParameters {
-            let transform = parameter.0
-            let frequencyRule = parameter.1
-            let remainingArguments = arguments.map({ String($0.value) })
+    func parse(arguments:Arguments) throws {
+        for parameter in parameters {
+            var captured = 0
             
-            switch frequencyRule {
-            case .one:
-                // Transform
-                let appendable = try transformArguments(remainingArguments, with: transform, count: 1)
-                transformedParameters.append(contentsOf: appendable)
-                argumentIndex = argumentIndex + 1
-                
-            case .nRequired(let requiredOccurrences):
-                // Transform
-                let appendable = try transformArguments(remainingArguments, with: transform, count: requiredOccurrences)
-                transformedParameters.append(contentsOf: appendable)
-                argumentIndex = argumentIndex + requiredOccurrences
-                
-            case .multiple:
-                // Transform
-                let transformedArgs = remainingArguments.map(transform)
-                guard transformedArgs.first != nil else { throw Tool.ArgumentError.insufficientParameters(requiredOccurence: .multiple) }
-                let remainingUpperBound = findNewArgumentIndex(from: transformedArgs)
-                argumentIndex = argumentIndex + remainingUpperBound
-                
-                let appendable = Array(transformedArgs[0..<remainingUpperBound])
-                transformedParameters.append(appendable)
+            while let argument = arguments.top, captured < parameter.definition.requiredCardinality.max ?? Int.max && argument.type == .parameter{
+                try parameter.consume(argument: argument)
+                arguments.consume()
+                captured = captured + 1
             }
             
-            // Early escape condition
-            if argumentIndex > arguments.count {
-                break
+            if captured < parameter.definition.requiredCardinality.min {
+                throw Argument.ParsingError.insufficientParameters(requiredOccurence: parameter.definition.requiredCardinality)
             }
+            
         }
-        
-        if argumentIndex < arguments.count {
-            throw Tool.ArgumentError.tooManyParameters
-        }
-        return transformedParameters
     }
 }
 

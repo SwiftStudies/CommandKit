@@ -7,19 +7,43 @@
 
 import Foundation
 
-public typealias RunBlock = (Arguments) -> Int
+public enum RunnableReturnValue {
+    case success
+    case failure(error:Error, code:Int)
+    
+    var error   : Error? {
+        switch self {
+        case .failure(let error,_):
+            return error
+        default:
+            return nil
+        }
+        
+    }
+    
+    var code : Int {
+        switch self {
+        case .failure(_, let code):
+            return code
+        default:
+            return 0
+        }
+    }
+    
+    var failed : Bool {
+        return error != nil
+    }
+    
+    var succeeded : Bool {
+        return !failed
+    }
+}
+
 
 /**
-     An object that can be executed by the Tool singleton
+     An object that supports the concept of "running"
  */
-public protocol Runnable: Any {
-    
-    /**
-         A run closure is called by the Tool singleton at runtime.
-     
-     - parameters: Can accept an array of transformed parameters
-     - return: Can return a value for use via runnable chaining
-     */
-    var run: RunBlock { get set }
+public protocol Runnable{
+    func run()->RunnableReturnValue
 }
 

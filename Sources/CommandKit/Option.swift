@@ -7,30 +7,80 @@
 
 import Foundation
 
-public protocol OptionDefinition{
-    //Definition
-    var shortForm : String? {get}
-    var longForm  : String {get}
-    var description : String {get}
-    var parameters : Parameter {get}
-    var required : Bool {get}
-    var instance : OptionInstance? {get set}
-    
+public protocol Optioned {
+    var options : [Option] {get}
 }
 
-public extension OptionDefinition{
-    mutating func createInstance<T:OptionInstance>(withArguments arguments:Arguments) throws ->T?{
-        guard let newInstance = try T(withArguments: arguments, withDefinition:parameterDefinition) else {
+public extension Optioned {
+    public subscript<O:Option>(optionCalled longForm:String)->O?{
+        for option in options {
+            if option.longForm == longForm {
+                return option as? O
+            }
+        }
+        
+        return nil
+    }
+}
+
+public protocol OptionIndex {
+    var rawValue : String {get}
+    var option   : Option {get}
+    
+    static var all : [Option] {get}
+}
+
+public protocol IndexableOptioned : Optioned{
+    associatedtype OptionIndexType : OptionIndex
+}
+
+
+
+public extension IndexableOptioned{
+    
+    subscript<T:Option>(option optionIndex :OptionIndexType)->T?{
+        for option in options {
+            if option.longForm == optionIndex.rawValue {
+                return option as? T
+            }
+        }
+        
+        return nil
+    }
+    
+    subscript<T>(_ option:OptionIndexType, _ parameter:ParameterIndex)->T?{
+        return self[option,parameter,0]
+    }
+    
+    subscript<V>(_ option:OptionIndexType, _ parameter:ParameterIndex, _ valueIndex : Int)->V?
+    {
+        guard let option = self[option:option] else {
             return nil
         }
         
-        instance = newInstance
         
-        return newInstance
+        
+        return option.parameters[parameter.rawValue] as? V
     }
+
+}
+
+open  class Option : Parameterized{
+    public final let shortForm: String?
+    public final let longForm: String
+    public final let description: String
+    public final let required: Bool
+
+    final public private(set) var parameters : [Parameter]
     
-    var isSet : Bool {
-        return instance != nil
+    final public internal(set) var isSet = false
+    
+    public init(shortForm:String? = nil, longForm:String, description:String, parameterDefinition parameters:[Parameter], required : Bool = false) {
+        self.shortForm = shortForm
+        self.longForm = longForm
+        self.description = description
+        self.parameters = parameters
+        self.required = required
     }
     
     func matches(argument:String)->Bool{
@@ -46,6 +96,13 @@ public extension OptionDefinition{
         
         return false
     }
+
+}
+
+public final class Flag : Option {
+    public init(shortForm: String? = nil, longForm:String, description:String){
+        super.init(shortForm: shortForm, longForm: longForm, description: description, parameterDefinition: [], required: false)
+    }
 }
 
 internal extension String {
@@ -58,58 +115,4 @@ internal extension String {
 }
 
 
-public extension OptionInstance{
-    func parseArguments(withArguments arguments:Arguments, withDefinition definition:RequiredParameters) throws -> [Any]{
-        var parsedParameters = [Any]()
-        for parameter in definition {
-            let max = parameter.cardinality.max
-            var i = 0
-            repeat {
-                guard let argument = arguments.top, argument.type == .parameter else {
-                    if max == nil && i > 0{
-                        return parsedParameters
-                    }
-                    throw Argument.ParsingError.insufficientParameters(requiredOccurence: parameter.cardinality)
-                }
-                
-                guard let transformedType = parameter.transform(argument.value) else {
-                    throw Argument.ParsingError.incorrectParameterFormat(expected: Void(), actual: argument.value)
-                }
-                
-                parsedParameters.append(transformedType)
-                
-                
-                arguments.consume()
-                i += 1
-            } while max == nil || max ?? 0<i
-        }
-        
-        return parsedParameters
-    }
-}
-
-public class Option : OptionDefinition {
-    
-    public let shortForm: String?
-    public let longForm: String
-    public let description: String
-    
-    public let parameterDefinition: RequiredParameters
-    
-    public let required: Bool
-    
-    public var instance: OptionInstance?
-
-    public init(shortForm:String? = nil, longForm:String, description:String, parameterDefinition parameters:RequiredParameters, required : Bool = false) {
-        self.shortForm = shortForm
-        self.longForm = longForm
-        self.description = description
-        self.parameterDefinition = parameters
-        self.required = required
-    }
-    
-    open  func parseArguments(arguments:Arguments) throws {
-        try parseArguments(arguments: arguments)
-    }
-}
 

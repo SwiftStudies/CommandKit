@@ -11,16 +11,17 @@ import Foundation
 /**
      Version Option
  */
-public class VersionOption: Option {
+public class VersionOption: Option, Runnable {
+    
+    let tool : Tool
     
     init(_ tool:Tool) {
-        super.init("v", verbose: "version", description: "Provides the current version of the command line tool", required: false){
-            [weak tool] (_,_) in
-            if let tool = tool {
-                print(tool.version.style(.bold))
-            } else {
-                print("Unknown version")
-            }
-        }
+        self.tool = tool
+        super.init(longForm: "version", description: "Provides the version of \(tool.name)", parameterDefinition: [], required: false)
+    }
+    
+    public func run() -> RunnableReturnValue {
+        print(tool.version.style(.bold))
+        return RunnableReturnValue.success
     }
 }

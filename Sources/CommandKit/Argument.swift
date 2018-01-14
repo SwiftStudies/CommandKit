@@ -25,6 +25,24 @@ public struct Argument {
         case parameter
     }
     
+    /**
+     An error relating to improper user input
+     */
+    enum ParsingError: Error {
+        case invalidToolName
+        case commandNotFound(for: String)
+        case optionNotFound
+        case noCommandProvided
+        case parametersNotFound
+        case insufficientParameters(requiredOccurence: Cardinality)
+        case invalidParameterType
+        case tooManyParameters
+        case unrecognizedOptionParameterSignature
+        case incorrectParameterFormat(expected:String, actual:String)
+        case requiredOptionNotFound(optionName:String)
+    }
+    
+    
     public init(value: String, type: ParsedType) {
         self.value = value
         self.type = type
@@ -41,7 +59,7 @@ public class Arguments {
             case 0:
                 unprocessed.append(Argument(value: element, type: .tool))
             case 1:
-                if tool.get(commandNamed: element) != nil {
+                if tool[commandNamed: element] != nil {
                     unprocessed.append(Argument(value: element, type: .command))
                     break
                 }

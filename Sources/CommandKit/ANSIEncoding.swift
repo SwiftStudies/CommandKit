@@ -27,7 +27,7 @@ public struct ANSIEncoding {
     /**
          ANSI codes that represent text stylization
      */
-    public enum StyleCodes: Int {
+    public enum Style: Int {
         case none               = 0
         case bold               = 1
         case italic             = 3
@@ -46,7 +46,7 @@ public struct ANSIEncoding {
     /**
          ANSI codes that represent text colorization from the terminal
      */
-    public enum ForegroundColorCodes: Int {
+    public enum ForegroundColor: Int {
         case black      = 30
         case red        = 31
         case green      = 32
@@ -60,7 +60,7 @@ public struct ANSIEncoding {
     /**
          ANSI codes that represent colorization of the text's background from the terminal
      */
-    public enum BackgroundColorCodes: Int {
+    public enum BackgroundColor: Int {
         case black      = 40
         case red        = 41
         case green      = 42
@@ -105,7 +105,7 @@ extension String {
             codes = workingString.stripPrefixedCodes()
         }
         
-        var formatUpperBound = ANSIEncoding.init(codes: [ANSIEncoding.StyleCodes.none.rawValue]).encoding
+        var formatUpperBound = ANSIEncoding.init(codes: [ANSIEncoding.Style.none.rawValue]).encoding
         if workingString.hasSuffix(formatUpperBound) {
             formatUpperBound = ""
         }
@@ -127,7 +127,7 @@ extension String {
     /**
          Applies the style provided to this string object
      */
-    public mutating func applyStyle(_ code: ANSIEncoding.StyleCodes) {
+    public mutating func applyStyle(_ code: ANSIEncoding.Style) {
         let encoding = ANSIEncoding(codes: [code.rawValue])
         self = self.encode(with: encoding)
     }
@@ -135,7 +135,7 @@ extension String {
     /**
          Applies the provided style(s) to this string object
      */
-    public mutating func applyStyles(_ codes: ANSIEncoding.StyleCodes...) {
+    public mutating func applyStyles(_ codes: ANSIEncoding.Style...) {
         let rawValues = codes.map({ $0.rawValue })
         let encoding = ANSIEncoding(codes: rawValues)
         self = self.encode(with: encoding)
@@ -144,7 +144,7 @@ extension String {
     /**
          Returns the string object with the provided style applied
      */
-    public func style(_ code: ANSIEncoding.StyleCodes) -> String {
+    public func style(_ code: ANSIEncoding.Style) -> String {
         let encoding = ANSIEncoding(codes: [code.rawValue])
         return self.encode(with: encoding)
     }
@@ -152,7 +152,7 @@ extension String {
     /**
          Returns the string object with the provided style(s) applied
      */
-    public func styles(_ codes: ANSIEncoding.StyleCodes...) -> String {
+    public func styles(_ codes: ANSIEncoding.Style...) -> String {
         let rawValues = codes.map({ $0.rawValue })
         let encoding = ANSIEncoding(codes: rawValues)
         return self.encode(with: encoding)
@@ -161,7 +161,7 @@ extension String {
     /**
          Applies the color provided to this string object
      */
-    public mutating func applyColor(_ code: ANSIEncoding.ForegroundColorCodes) {
+    public mutating func applyColor(_ code: ANSIEncoding.ForegroundColor) {
         let encoding = ANSIEncoding(codes: [code.rawValue])
         self = self.encode(with: encoding)
     }
@@ -169,7 +169,7 @@ extension String {
     /**
          Returns the string object with the provided color applied
      */
-    public func color(_ code: ANSIEncoding.ForegroundColorCodes) -> String {
+    public func color(_ code: ANSIEncoding.ForegroundColor) -> String {
         let encoding = ANSIEncoding(codes: [code.rawValue])
         return self.encode(with: encoding)
     }
@@ -177,7 +177,7 @@ extension String {
     /**
          Applies the background color provided to this string object
      */
-    public mutating func applyBackgroundColor(_ code: ANSIEncoding.BackgroundColorCodes) {
+    public mutating func applyBackgroundColor(_ code: ANSIEncoding.BackgroundColor) {
         let encoding = ANSIEncoding(codes: [code.rawValue])
         self = self.encode(with: encoding)
     }
@@ -185,7 +185,7 @@ extension String {
     /**
          Returns the string object with the provided background color applied
      */
-    public func backgroundColor(_ code: ANSIEncoding.BackgroundColorCodes) -> String {
+    public func backgroundColor(_ code: ANSIEncoding.BackgroundColor) -> String {
         let encoding = ANSIEncoding(codes: [code.rawValue])
         return self.encode(with: encoding)
     }
