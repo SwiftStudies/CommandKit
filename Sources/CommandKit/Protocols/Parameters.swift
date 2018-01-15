@@ -108,6 +108,10 @@ public class Parameter{
         self.definition = definition
     }
     
+    public var suppliedValues : Int {
+        return values.count
+    }
+    
     public subscript(_ index:Int)->Any{
         assert(index<values.count,"Invalid index \(index)")
         return values[index]
